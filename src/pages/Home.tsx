@@ -11,7 +11,7 @@ import { getScenarioById } from "@/utils/scenarioData";
 import { useMemo } from "react";
 
 export default function Home() {
-  const { showSummary, setShowSummary, currentScenarioId, adjustmentHistory } =
+  const { showSummary, setShowSummary, currentScenarioId, adjustmentHistory, getActualAdjustmentCount } =
     usePracticeStore();
   const [showHelp, setShowHelp] = useState(false);
 
@@ -110,7 +110,7 @@ export default function Home() {
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-gray-500">累计调整次数</span>
                     <span className="font-mono font-bold text-lg text-primary-600">
-                      {adjustmentHistory.length}
+                      {getActualAdjustmentCount()}
                     </span>
                   </div>
                   <div className="flex justify-between items-center">

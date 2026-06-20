@@ -4,6 +4,8 @@ import type {
   CalculationResult,
   AdjustmentRecord,
   ParamKey,
+  TeacherFeedback,
+  HistoryDetailView,
 } from "@/types";
 import { getScenarioById, SCENARIOS } from "@/utils/scenarioData";
 import { calculateSafety } from "@/utils/calculationEngine";
@@ -14,12 +16,17 @@ interface PracticeState {
   currentResult: CalculationResult | null;
   adjustmentHistory: AdjustmentRecord[];
   showSummary: boolean;
+  teacherFeedback: TeacherFeedback;
+  selectedHistoryDetail: HistoryDetailView | null;
 
   setScenario: (id: string) => void;
   updateParam: (key: ParamKey, value: number) => void;
   resetToDefault: () => void;
   clearHistory: () => void;
   setShowSummary: (show: boolean) => void;
+  setTeacherFeedback: (feedback: Partial<TeacherFeedback>) => void;
+  setSelectedHistoryDetail: (detail: HistoryDetailView | null) => void;
+  getActualAdjustmentCount: () => number;
 }
 
 export const usePracticeStore = create<PracticeState>((set, get) => ({
@@ -31,9 +38,20 @@ export const usePracticeStore = create<PracticeState>((set, get) => ({
       params: SCENARIOS[0].defaultParams,
       result: calculateSafety(SCENARIOS[0].defaultParams),
       timestamp: Date.now(),
+      isInitial: true,
     },
   ],
   showSummary: false,
+  teacherFeedback: {
+    score: 0,
+    comment: "",
+    mastery: {},
+  },
+  selectedHistoryDetail: null,
+
+  getActualAdjustmentCount: () => {
+    return get().adjustmentHistory.filter((r) => !r.isInitial).length;
+  },
 
   setScenario: (id: string) => {
     const scenario = getScenarioById(id);
@@ -50,8 +68,15 @@ export const usePracticeStore = create<PracticeState>((set, get) => ({
           params: scenario.defaultParams,
           result,
           timestamp: Date.now(),
+          isInitial: true,
         },
       ],
+      teacherFeedback: {
+        score: 0,
+        comment: "",
+        mastery: {},
+      },
+      selectedHistoryDetail: null,
     });
   },
 
@@ -114,8 +139,15 @@ export const usePracticeStore = create<PracticeState>((set, get) => ({
           params: scenario.defaultParams,
           result,
           timestamp: Date.now(),
+          isInitial: true,
         },
       ],
+      teacherFeedback: {
+        score: 0,
+        comment: "",
+        mastery: {},
+      },
+      selectedHistoryDetail: null,
     });
   },
 
@@ -125,5 +157,19 @@ export const usePracticeStore = create<PracticeState>((set, get) => ({
 
   setShowSummary: (show: boolean) => {
     set({ showSummary: show });
+  },
+
+  setTeacherFeedback: (feedback: Partial<TeacherFeedback>) => {
+    set((state) => ({
+      teacherFeedback: {
+        ...state.teacherFeedback,
+        ...feedback,
+        reviewedAt: Date.now(),
+      },
+    }));
+  },
+
+  setSelectedHistoryDetail: (detail: HistoryDetailView) => {
+    set({ selectedHistoryDetail: detail });
   },
 }));

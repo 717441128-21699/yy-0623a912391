@@ -67,6 +67,7 @@ export interface AdjustmentRecord {
   result: CalculationResult;
   timestamp: number;
   changedParam?: ParamKey;
+  isInitial?: boolean;
 }
 
 export interface ParamInfo {
@@ -114,3 +115,65 @@ export const PARAM_INFO: Record<ParamKey, ParamInfo> = {
     description: "施工人员、设备和堆料产生的附加荷载",
   },
 };
+
+export interface TeacherFeedback {
+  score: number;
+  comment: string;
+  mastery: Record<string, "mastered" | "partial" | "needs-work">;
+  reviewedAt?: number;
+}
+
+export interface KeyPoint {
+  id: string;
+  label: string;
+  description: string;
+  relatedParams: ParamKey[];
+}
+
+export const KEY_POINTS: KeyPoint[] = [
+  {
+    id: "pole-spacing",
+    label: "立杆间距控制",
+    description: "理解立杆纵距和横距对荷载分配的影响",
+    relatedParams: ["poleSpacingX", "poleSpacingY"],
+  },
+  {
+    id: "step-distance",
+    label: "步距控制",
+    description: "理解步距对立杆稳定性的影响",
+    relatedParams: ["stepDistance"],
+  },
+  {
+    id: "wood-spacing",
+    label: "木方间距控制",
+    description: "理解木方间距对面板挠度的影响",
+    relatedParams: ["woodSpacing"],
+  },
+  {
+    id: "load-consideration",
+    label: "施工荷载考虑",
+    description: "理解施工荷载对支撑体系的影响",
+    relatedParams: ["constructionLoad"],
+  },
+  {
+    id: "slab-thickness",
+    label: "板厚与荷载关系",
+    description: "理解混凝土自重与板厚的关系",
+    relatedParams: ["slabThickness"],
+  },
+];
+
+export interface RiskSummaryItem {
+  checkId: string;
+  checkName: string;
+  count: number;
+  firstOccurrence: number;
+  lastOccurrence: number;
+  resolved: boolean;
+  resolution?: string;
+}
+
+export interface HistoryDetailView {
+  record: AdjustmentRecord;
+  index: number;
+}
