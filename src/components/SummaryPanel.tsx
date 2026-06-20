@@ -34,6 +34,8 @@ import {
   ThumbsDown,
   MinusCircle,
   History,
+  User,
+  FolderOpen,
 } from "lucide-react";
 import { usePracticeStore } from "@/store/usePracticeStore";
 import { getScenarioById } from "@/utils/scenarioData";
@@ -66,12 +68,20 @@ export function SummaryPanel({ onClose }: SummaryPanelProps) {
     selectedHistoryDetail,
     setSelectedHistoryDetail,
     getActualAdjustmentCount,
+    studentInfo,
+    teacherName,
+    setStudentInfo,
+    setTeacherName,
+    getRiskSummary,
+    saveCurrentAsArchive,
+    setShowArchivePanel,
   } = usePracticeStore();
 
   const [currentPage, setCurrentPage] = useState(1);
   const [filterType, setFilterType] = useState<FilterType>("all");
   const [expandedHistory, setExpandedHistory] = useState(true);
   const [activeTab, setActiveTab] = useState<"overview" | "timeline" | "replay">("overview");
+  const [saveMessage, setSaveMessage] = useState<string>("");
 
   const scenario = useMemo(
     () => (currentScenarioId ? getScenarioById(currentScenarioId) : null),
@@ -91,42 +101,7 @@ export function SummaryPanel({ onClose }: SummaryPanelProps) {
     );
   }, [firstRecord, lastRecord]);
 
-  const riskSummary = useMemo((): RiskSummaryItem[] => {
-    const riskMap = new Map<string, RiskSummaryItem>();
-
-    adjustmentHistory.forEach((record, idx) => {
-      if (record.isInitial) return;
-      record.result.checks
-        .filter((c) => !c.passed)
-        .forEach((check) => {
-          if (!riskMap.has(check.id)) {
-            riskMap.set(check.id, {
-              checkId: check.id,
-              checkName: check.name,
-              count: 0,
-              firstOccurrence: idx,
-              lastOccurrence: idx,
-              resolved: false,
-            });
-          }
-          const item = riskMap.get(check.id)!;
-          item.count++;
-          item.lastOccurrence = idx;
-        });
-    });
-
-    const finalChecks = lastRecord?.result.checks || [];
-    riskMap.forEach((item) => {
-      const finalCheck = finalChecks.find((c) => c.id === item.checkId);
-      if (finalCheck?.passed) {
-        item.resolved = true;
-        const resolution = getResolution(item.checkId, item.firstOccurrence, item.lastOccurrence);
-        if (resolution) item.resolution = resolution;
-      }
-    });
-
-    return Array.from(riskMap.values()).sort((a, b) => b.count - a.count);
-  }, [adjustmentHistory, lastRecord]);
+  const riskSummary = getRiskSummary();
 
   const getResolution = (
     checkId: string,
@@ -425,13 +400,22 @@ export function SummaryPanel({ onClose }: SummaryPanelProps) {
             box-shadow: none !important;
             border: none !important;
             border-radius: 0 !important;
+            overflow: visible !important;
           }
           .print-all-history {
             display: block !important;
           }
+          .print-tab-content {
+            display: block !important;
+          }
+          .print-tab-content > div {
+            display: block !important;
+          }
+          body { overflow: visible !important; }
         }
         .print-only { display: none; }
         .print-all-history { display: none; }
+        .print-tab-content { display: none; }
       `}</style>
 
       <div className="print-only print-header" style={{ display: "none" }}>
@@ -476,6 +460,10 @@ export function SummaryPanel({ onClose }: SummaryPanelProps) {
               flexWrap: "wrap",
             }}
           >
+            {studentInfo.name && <span>👤 学生: {studentInfo.name}</span>}
+            {studentInfo.className && <span>🏫 班级: {studentInfo.className}</span>}
+            {studentInfo.batchId && <span>📋 作业: {studentInfo.batchId}</span>}
+            {teacherName && <span>✏️ 批改老师: {teacherName}</span>}
             <span>📅 {lastRecord ? formatDateTime(lastRecord.timestamp) : "-"}</span>
             <span>
               ⏱️ 练习时长:{" "}
@@ -544,6 +532,123 @@ export function SummaryPanel({ onClose }: SummaryPanelProps) {
         <div className="flex-1 overflow-y-auto">
           {activeTab === "overview" && (
             <div className="p-6 space-y-6">
+              <div className="bg-gradient-to-br from-slate-50 to-blue-50 rounded-xl p-5 border border-blue-100 no-print">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-semibold text-blue-800 flex items-center gap-2">
+                    <User size={18} />
+                    学生与作业信息
+                  </h3>
+                  <button
+                    onClick={() => setShowArchivePanel(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-primary-600 bg-white border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors"
+                  >
+                    <FolderOpen size={14} />
+                    存档管理
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                      学生姓名 <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={studentInfo.name}
+                      onChange={(e) => setStudentInfo({ name: e.target.value })}
+                      placeholder="请输入姓名"
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                      班级
+                    </label>
+                    <input
+                      type="text"
+                      value={studentInfo.className}
+                      onChange={(e) => setStudentInfo({ className: e.target.value })}
+                      placeholder="如：建工2023-1班"
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                      作业批次
+                    </label>
+                    <input
+                      type="text"
+                      value={studentInfo.batchId}
+                      onChange={(e) => setStudentInfo({ batchId: e.target.value })}
+                      placeholder="如：第3次作业"
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                      批改老师
+                    </label>
+                    <input
+                      type="text"
+                      value={teacherName}
+                      onChange={(e) => setTeacherName(e.target.value)}
+                      placeholder="请输入老师姓名"
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                </div>
+                {saveMessage && (
+                  <div
+                    className={`mt-3 p-2 rounded-lg text-xs ${
+                      saveMessage.includes("成功")
+                        ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                        : "bg-red-50 text-red-700 border border-red-200"
+                    }`}
+                  >
+                    {saveMessage}
+                  </div>
+                )}
+                <div className="flex gap-2 mt-3">
+                  <button
+                    onClick={() => {
+                      if (!studentInfo.name.trim()) {
+                        setSaveMessage("请先填写学生姓名");
+                        setTimeout(() => setSaveMessage(""), 2000);
+                        return;
+                      }
+                      const result = saveCurrentAsArchive();
+                      if (result) {
+                        setSaveMessage("✅ 已保存到本地存档，可在存档管理中查看");
+                        setTimeout(() => setSaveMessage(""), 2500);
+                      }
+                    }}
+                    className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+                  >
+                    <Download size={14} />
+                    保存到本地存档
+                  </button>
+                </div>
+              </div>
+
+              <div className="print-only">
+                <div
+                  style={{
+                    padding: "12px 16px",
+                    background: "#eff6ff",
+                    borderRadius: "8px",
+                    border: "1px solid #bfdbfe",
+                    marginBottom: "20px",
+                    fontSize: "13px",
+                  }}
+                >
+                  <div style={{ display: "flex", gap: "24px", flexWrap: "wrap" }}>
+                    {studentInfo.name && <span><strong>学生姓名：</strong>{studentInfo.name}</span>}
+                    {studentInfo.className && <span><strong>班级：</strong>{studentInfo.className}</span>}
+                    {studentInfo.batchId && <span><strong>作业批次：</strong>{studentInfo.batchId}</span>}
+                    {teacherName && <span><strong>批改老师：</strong>{teacherName}</span>}
+                  </div>
+                </div>
+              </div>
+
               <div className="print-only">
                 <div
                   style={{
@@ -1680,6 +1785,115 @@ export function SummaryPanel({ onClose }: SummaryPanelProps) {
               )}
             </div>
           )}
+
+          <div className="print-tab-content p-6">
+            <div
+              style={{
+                padding: "16px",
+                background: "#fefce8",
+                borderRadius: "8px",
+                border: "1px solid #fde047",
+                marginBottom: "24px",
+                pageBreakInside: "avoid",
+              }}
+            >
+              <div
+                style={{
+                  fontWeight: "bold",
+                  color: "#854d0e",
+                  marginBottom: "12px",
+                  fontSize: "14px",
+                }}
+              >
+                ⚠️ 练习过程风险总结（含初始状态）
+              </div>
+              {riskSummary.length === 0 ? (
+                <div style={{ fontSize: "13px", color: "#059669" }}>
+                  ✅ 整个练习过程中未出现任何风险项
+                </div>
+              ) : (
+                riskSummary.map((risk) => (
+                  <div
+                    key={risk.checkId}
+                    style={{
+                      padding: "8px 12px",
+                      background: "white",
+                      borderRadius: "6px",
+                      marginBottom: "8px",
+                      fontSize: "13px",
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between" }}>
+                      <span>
+                        {risk.resolved ? "✅" : "⚠️"} {risk.checkName}
+                      </span>
+                      <span style={{ color: risk.resolved ? "#059669" : "#dc2626" }}>
+                        {risk.resolved ? "已解决" : "未解决"} | 出现 {risk.count} 次
+                      </span>
+                    </div>
+                    {risk.resolution && (
+                      <div style={{ color: "#059669", fontSize: "12px", marginTop: "4px" }}>
+                        解决方式: {risk.resolution}
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div style={{ pageBreakInside: "avoid" }}>
+              <div
+                style={{
+                  fontWeight: "bold",
+                  color: "#1e3a8a",
+                  marginBottom: "12px",
+                  fontSize: "14px",
+                }}
+              >
+                📋 完整调整路线（共 {adjustmentHistory.length} 条记录，调整 {actualCount} 次）
+              </div>
+              <div style={{ fontSize: "12px", color: "#6b7280", marginBottom: "8px" }}>
+                注：第 1 条为初始参数设置，不计入调整次数
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                {adjustmentHistory.map((record, idx) => {
+                  const color = getStatusColor(record.result.status);
+                  const desc = getParamChangeDescription(record, adjustmentHistory);
+                  return (
+                    <div
+                      key={`print-full-${idx}`}
+                      style={{
+                        padding: "8px 12px",
+                        border: "1px solid #e5e7eb",
+                        borderRadius: "6px",
+                        fontSize: "12px",
+                        pageBreakInside: "avoid",
+                      }}
+                    >
+                      <div style={{ display: "flex", justifyContent: "space-between" }}>
+                        <span style={{ fontWeight: 500 }}>
+                          [{idx + 1}] {desc}
+                        </span>
+                        <span style={{ color, fontWeight: 500 }}>
+                          {record.result.status === "safe"
+                            ? "✅ 安全"
+                            : record.result.status === "warning"
+                            ? "⚠️ 临界"
+                            : "❌ 危险"}
+                        </span>
+                      </div>
+                      <div style={{ color: "#6b7280", marginTop: "4px", fontFamily: "monospace" }}>
+                        安全系数 {record.result.overallSafetyFactor.toFixed(2)} | 纵距
+                        {record.params.poleSpacingX} × 横距{record.params.poleSpacingY} × 步距
+                        {record.params.stepDistance}mm | 板厚{record.params.slabThickness}mm | 木方
+                        {record.params.woodSpacing}mm | 荷载{record.params.constructionLoad}kN/m²
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
         </div>
 
         <div className="p-6 border-t border-gray-100 flex items-center justify-between no-print">

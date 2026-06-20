@@ -177,3 +177,36 @@ export interface HistoryDetailView {
   record: AdjustmentRecord;
   index: number;
 }
+
+export interface StudentInfo {
+  name: string;
+  className: string;
+  batchId: string;
+}
+
+export interface PracticeArchive {
+  id: string;
+  studentInfo: StudentInfo;
+  teacherName: string;
+  scenarioId: string;
+  scenarioName: string;
+  currentParams: CalculationParams;
+  adjustmentHistory: AdjustmentRecord[];
+  teacherFeedback: TeacherFeedback;
+  riskSummary: RiskSummaryItem[];
+  archivedAt: number;
+  finalStatus: SafetyStatus;
+  finalSafetyFactor: number;
+  actualAdjustmentCount: number;
+  practiceDuration: number;
+}
+
+export interface ComparisonResult {
+  archiveA: PracticeArchive;
+  archiveB: PracticeArchive;
+  fasterStudent: "A" | "B" | "tie";
+  stuckRisksA: RiskSummaryItem[];
+  stuckRisksB: RiskSummaryItem[];
+  evaluationA: string;
+  evaluationB: string;
+}

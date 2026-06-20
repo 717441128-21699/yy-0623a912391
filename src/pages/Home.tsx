@@ -1,18 +1,38 @@
 import { useState } from "react";
-import { HardHat, BookOpen, ClipboardList, HelpCircle } from "lucide-react";
+import {
+  HardHat,
+  BookOpen,
+  ClipboardList,
+  HelpCircle,
+  Users,
+  Save,
+  Download,
+  FolderOpen,
+} from "lucide-react";
 import { ScenarioSelector } from "@/components/ScenarioSelector";
 import { SectionDiagram } from "@/components/SectionDiagram";
 import { ParamControls } from "@/components/ParamControls";
 import { SafetyGauge } from "@/components/SafetyGauge";
 import { ExplanationPanel } from "@/components/ExplanationPanel";
 import { SummaryPanel } from "@/components/SummaryPanel";
+import { ArchivePanel } from "@/components/ArchivePanel";
+import { ComparisonPanel } from "@/components/ComparisonPanel";
 import { usePracticeStore } from "@/store/usePracticeStore";
 import { getScenarioById } from "@/utils/scenarioData";
 import { useMemo } from "react";
 
 export default function Home() {
-  const { showSummary, setShowSummary, currentScenarioId, adjustmentHistory, getActualAdjustmentCount } =
-    usePracticeStore();
+  const {
+    showSummary,
+    setShowSummary,
+    currentScenarioId,
+    adjustmentHistory,
+    getActualAdjustmentCount,
+    showArchivePanel,
+    setShowArchivePanel,
+    showComparisonPanel,
+    setShowComparisonPanel,
+  } = usePracticeStore();
   const [showHelp, setShowHelp] = useState(false);
 
   const scenario = useMemo(
@@ -50,6 +70,22 @@ export default function Home() {
                   </span>
                 </div>
               )}
+              <button
+                onClick={() => setShowArchivePanel(true)}
+                className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-600 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
+                title="存档管理"
+              >
+                <FolderOpen size={18} />
+                <span className="hidden sm:inline">存档</span>
+              </button>
+              <button
+                onClick={() => setShowComparisonPanel(true)}
+                className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-600 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
+                title="学生对比"
+              >
+                <Users size={18} />
+                <span className="hidden sm:inline">对比</span>
+              </button>
               <button
                 onClick={() => setShowHelp(!showHelp)}
                 className="p-2 text-gray-500 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
@@ -158,6 +194,12 @@ export default function Home() {
       </footer>
 
       {showSummary && <SummaryPanel onClose={() => setShowSummary(false)} />}
+      {showArchivePanel && (
+        <ArchivePanel onClose={() => setShowArchivePanel(false)} />
+      )}
+      {showComparisonPanel && (
+        <ComparisonPanel onClose={() => setShowComparisonPanel(false)} />
+      )}
     </div>
   );
 }
