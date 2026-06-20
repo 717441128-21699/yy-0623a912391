@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import {
   ChevronDown,
   ChevronUp,
@@ -8,10 +9,16 @@ import {
   Link,
   MoveVertical,
   TrendingUp,
+  ArrowDown,
+  ArrowUp,
+  Zap,
+  Target,
 } from "lucide-react";
 import { useState } from "react";
-import type { CheckItem } from "@/types";
+import type { CheckItem, CalculationParams, ParamKey } from "@/types";
 import { PARAM_INFO } from "@/types";
+import { analyzeParamSensitivity } from "@/utils/calculationEngine";
+import type { ParamSensitivity } from "@/utils/calculationEngine";
 
 const iconMap: Record<string, React.ElementType> = {
   TrendingUp,
@@ -22,11 +29,19 @@ const iconMap: Record<string, React.ElementType> = {
 
 interface CheckItemCardProps {
   check: CheckItem;
+  currentParams: CalculationParams;
+  paramRanges: Record<ParamKey, [number, number, number]>;
+  rank?: number;
 }
 
-export function CheckItemCard({ check }: CheckItemCardProps) {
+export function CheckItemCard({ check, currentParams, paramRanges, rank }: CheckItemCardProps) {
   const [expanded, setExpanded] = useState(false);
   const Icon = iconMap[check.icon] || AlertTriangle;
+
+  const sensitivities = useMemo(() => {
+    if (check.passed && check.safetyFactor / check.requiredFactor >= 1.1) return [];
+    return analyzeParamSensitivity(currentParams, check.id, paramRanges);
+  }, [check, currentParams, paramRanges]);
 
   const getBarColor = () => {
     const ratio = check.safetyFactor / check.requiredFactor;
@@ -54,6 +69,41 @@ export function CheckItemCard({ check }: CheckItemCardProps) {
     (check.safetyFactor / check.requiredFactor) * 80
   );
 
+  const renderSensitivityItem = (s: ParamSensitivity, isTop: boolean = false) => {
+    const ArrowIcon = s.direction === "decrease" ? ArrowDown : ArrowUp;
+    return (
+      <div
+        key={s.param}
+        className={`flex items-center gap-3 p-3 rounded-lg ${
+          isTop ? "bg-red-100 border border-red-200" : "bg-gray-100 border border-gray-200"
+        }`}
+      >
+        <div
+          className={`p-1.5 rounded-md ${
+            isTop ? "bg-red-500 text-white" : "bg-gray-500 text-white"
+          }`}
+        >
+          <ArrowIcon size={14} />
+        </div>
+        <div className="flex-1">
+          <div className={`text-sm font-medium ${isTop ? "text-red-800" : "text-gray-800"}`}>
+            {s.description}
+          </div>
+          <div className={`text-xs ${isTop ? "text-red-600" : "text-gray-500"}`}>
+            预计提升安全系数约 +{s.estimatedImprovement.toFixed(2)}
+          </div>
+        </div>
+        <div
+          className={`text-xs font-mono font-bold px-2 py-1 rounded ${
+            isTop ? "bg-red-200 text-red-800" : "bg-gray-200 text-gray-700"
+          }`}
+        >
+          {(s.impactScore * 100).toFixed(0)}%
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div
       className={`rounded-xl border transition-all duration-300 ${getBgColor()} ${
@@ -74,6 +124,11 @@ export function CheckItemCard({ check }: CheckItemCardProps) {
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
+            {rank !== undefined && (
+              <span className="flex items-center justify-center w-6 h-6 bg-red-500 text-white text-xs font-bold rounded-full">
+                {rank}
+              </span>
+            )}
             <span className="font-medium text-gray-800">{check.name}</span>
             {getStatusIcon()}
           </div>
@@ -123,7 +178,10 @@ export function CheckItemCard({ check }: CheckItemCardProps) {
       {expanded && (
         <div className="px-4 pb-4 space-y-3 animate-slide-up">
           <div className="p-3 bg-white rounded-lg border border-gray-100">
-            <div className="text-sm font-medium text-gray-700 mb-1">💡 通俗解释</div>
+            <div className="text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
+              <Target size={14} />
+              <span>通俗解释</span>
+            </div>
             <p className="text-sm text-gray-600">{check.plainExplanation}</p>
           </div>
 
@@ -143,7 +201,20 @@ export function CheckItemCard({ check }: CheckItemCardProps) {
             </div>
           </div>
 
-          {!check.passed && (
+          {sensitivities.length > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-1 text-sm font-medium text-red-700">
+                <Zap size={14} />
+                <span>优先调整建议（按效果排序）</span>
+              </div>
+              <div className="space-y-2">
+                {sensitivities.length > 0 && renderSensitivityItem(sensitivities[0], true)}
+                {sensitivities.slice(1).map((s) => renderSensitivityItem(s, false))}
+              </div>
+            </div>
+          )}
+
+          {!check.passed && sensitivities.length === 0 && (
             <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
               <div className="text-sm font-medium text-amber-800 mb-1">
                 🔧 调整建议

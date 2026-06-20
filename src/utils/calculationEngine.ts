@@ -1,4 +1,20 @@
-import type { CalculationParams, CalculationResult, CheckItem, SafetyStatus } from "@/types";
+import type { CalculationParams, CalculationResult, CheckItem, SafetyStatus, ParamKey } from "@/types";
+
+export interface ParamSensitivity {
+  param: ParamKey;
+  impactScore: number;
+  direction: "decrease" | "increase";
+  description: string;
+  estimatedImprovement: number;
+}
+
+export interface PrioritySuggestion {
+  rank: number;
+  checkId: string;
+  checkName: string;
+  topAction: ParamSensitivity;
+  alternativeActions: ParamSensitivity[];
+}
 
 function checkPoleStability(params: CalculationParams): CheckItem {
   const concreteWeight = (params.slabThickness / 1000) * 25;
@@ -164,4 +180,102 @@ export function getStatusText(status: SafetyStatus): string {
     case "danger":
       return "存在风险";
   }
+}
+
+export function analyzeParamSensitivity(
+  params: CalculationParams,
+  checkId: string,
+  paramRanges: Record<ParamKey, [number, number, number]>
+): ParamSensitivity[] {
+  const results: ParamSensitivity[] = [];
+  const currentResult = calculateSafety(params);
+  const currentCheck = currentResult.checks.find((c) => c.id === checkId);
+  if (!currentCheck) return results;
+
+  const testParams = { ...params };
+
+  const paramConfigs: { key: ParamKey; step: number; direction: "decrease" | "increase" }[] = [
+    { key: "poleSpacingX", step: paramRanges.poleSpacingX[2] * 2, direction: "decrease" },
+    { key: "poleSpacingY", step: paramRanges.poleSpacingY[2] * 2, direction: "decrease" },
+    { key: "stepDistance", step: paramRanges.stepDistance[2] * 2, direction: "decrease" },
+    { key: "slabThickness", step: paramRanges.slabThickness[2] * 2, direction: "increase" },
+    { key: "woodSpacing", step: paramRanges.woodSpacing[2] * 2, direction: "decrease" },
+    { key: "constructionLoad", step: paramRanges.constructionLoad[2] * 2, direction: "decrease" },
+  ];
+
+  for (const config of paramConfigs) {
+    if (!currentCheck.affectedParams.includes(config.key)) continue;
+
+    const [min, max] = paramRanges[config.key];
+    const delta = config.direction === "decrease" ? -config.step : config.step;
+    const newValue = Math.max(min, Math.min(max, params[config.key] + delta));
+
+    if (Math.abs(newValue - params[config.key]) < 0.01) continue;
+
+    testParams[config.key] = newValue;
+    const newResult = calculateSafety(testParams);
+    const newCheck = newResult.checks.find((c) => c.id === checkId);
+    testParams[config.key] = params[config.key];
+
+    if (!newCheck) continue;
+
+    const improvement = newCheck.safetyFactor - currentCheck.safetyFactor;
+    if (improvement <= 0) continue;
+
+    const paramLabels: Record<ParamKey, string> = {
+      poleSpacingX: "立杆纵距",
+      poleSpacingY: "立杆横距",
+      stepDistance: "步距",
+      slabThickness: "板厚",
+      woodSpacing: "木方间距",
+      constructionLoad: "施工荷载",
+    };
+
+    const paramUnits: Record<ParamKey, string> = {
+      poleSpacingX: "mm",
+      poleSpacingY: "mm",
+      stepDistance: "mm",
+      slabThickness: "mm",
+      woodSpacing: "mm",
+      constructionLoad: "kN/m²",
+    };
+
+    results.push({
+      param: config.key,
+      impactScore: improvement,
+      direction: config.direction,
+      description: `${config.direction === "decrease" ? "减小" : "增大"}${paramLabels[config.key]}（每次约${config.step}${paramUnits[config.key]}）`,
+      estimatedImprovement: Math.round(improvement * 100) / 100,
+    });
+  }
+
+  return results.sort((a, b) => b.impactScore - a.impactScore);
+}
+
+export function getPrioritySuggestions(
+  params: CalculationParams,
+  paramRanges: Record<ParamKey, [number, number, number]>
+): PrioritySuggestion[] {
+  const result = calculateSafety(params);
+
+  const failedOrWarning = result.checks
+    .filter((c) => !c.passed || c.safetyFactor / c.requiredFactor < 1.1)
+    .sort((a, b) => a.safetyFactor / a.requiredFactor - b.safetyFactor / b.requiredFactor);
+
+  const suggestions: PrioritySuggestion[] = [];
+
+  failedOrWarning.forEach((check, index) => {
+    const sensitivities = analyzeParamSensitivity(params, check.id, paramRanges);
+    if (sensitivities.length === 0) return;
+
+    suggestions.push({
+      rank: index + 1,
+      checkId: check.id,
+      checkName: check.name,
+      topAction: sensitivities[0],
+      alternativeActions: sensitivities.slice(1, 3),
+    });
+  });
+
+  return suggestions;
 }
