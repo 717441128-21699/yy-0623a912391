@@ -37,6 +37,7 @@ export function ArchivePanel({ onClose }: ArchivePanelProps) {
     clearArchives,
     activeArchiveTab,
     setActiveArchiveTab,
+    getStudentShortcomings,
   } = usePracticeStore();
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -105,6 +106,8 @@ export function ArchivePanel({ onClose }: ArchivePanelProps) {
       "板厚",
       "木方间距",
       "施工荷载",
+      "主要短板-风险项",
+      "主要短板-知识点",
       "教师评语",
     ];
 
@@ -113,6 +116,7 @@ export function ArchivePanel({ onClose }: ArchivePanelProps) {
       const resolvedCount = a.riskSummary.filter((r) => r.resolved).length;
       const unresolvedCount = a.riskSummary.filter((r) => !r.resolved).length;
       const risks = a.riskSummary.map((r) => `${r.checkName}(${r.count}次)`).join("; ");
+      const shortcomings = getStudentShortcomings(a);
       return [
         new Date(a.archivedAt).toLocaleString("zh-CN"),
         a.studentInfo.name,
@@ -134,6 +138,8 @@ export function ArchivePanel({ onClose }: ArchivePanelProps) {
         a.currentParams.slabThickness,
         a.currentParams.woodSpacing,
         a.currentParams.constructionLoad,
+        shortcomings.risks.join("; "),
+        shortcomings.weakPoints.join("; "),
         a.teacherFeedback.comment.replace(/\n/g, " "),
       ];
     });

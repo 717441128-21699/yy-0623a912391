@@ -8,6 +8,7 @@ import {
   Save,
   Download,
   FolderOpen,
+  BarChart3,
 } from "lucide-react";
 import { ScenarioSelector } from "@/components/ScenarioSelector";
 import { SectionDiagram } from "@/components/SectionDiagram";
@@ -17,6 +18,7 @@ import { ExplanationPanel } from "@/components/ExplanationPanel";
 import { SummaryPanel } from "@/components/SummaryPanel";
 import { ArchivePanel } from "@/components/ArchivePanel";
 import { ComparisonPanel } from "@/components/ComparisonPanel";
+import { ClassSummaryPanel } from "@/components/ClassSummaryPanel";
 import { usePracticeStore } from "@/store/usePracticeStore";
 import { getScenarioById } from "@/utils/scenarioData";
 import { useMemo } from "react";
@@ -32,6 +34,8 @@ export default function Home() {
     setShowArchivePanel,
     showComparisonPanel,
     setShowComparisonPanel,
+    showClassSummaryPanel,
+    setShowClassSummaryPanel,
   } = usePracticeStore();
   const [showHelp, setShowHelp] = useState(false);
 
@@ -85,6 +89,14 @@ export default function Home() {
               >
                 <Users size={18} />
                 <span className="hidden sm:inline">对比</span>
+              </button>
+              <button
+                onClick={() => setShowClassSummaryPanel(true)}
+                className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-600 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
+                title="班级汇总"
+              >
+                <BarChart3 size={18} />
+                <span className="hidden sm:inline">汇总</span>
               </button>
               <button
                 onClick={() => setShowHelp(!showHelp)}
@@ -199,6 +211,9 @@ export default function Home() {
       )}
       {showComparisonPanel && (
         <ComparisonPanel onClose={() => setShowComparisonPanel(false)} />
+      )}
+      {showClassSummaryPanel && (
+        <ClassSummaryPanel onClose={() => setShowClassSummaryPanel(false)} />
       )}
     </div>
   );

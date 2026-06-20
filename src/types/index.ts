@@ -210,3 +210,49 @@ export interface ComparisonResult {
   evaluationA: string;
   evaluationB: string;
 }
+
+export interface ClassRiskStat {
+  checkId: string;
+  checkName: string;
+  totalOccurrences: number;
+  unresolvedCount: number;
+  studentCount: number;
+}
+
+export interface ClassMasteryStat {
+  keyPointId: string;
+  keyPointLabel: string;
+  masteredCount: number;
+  partialCount: number;
+  needsWorkCount: number;
+}
+
+export interface ClassSummaryGroup {
+  groupKey: string;
+  className: string;
+  batchId: string;
+  scenarioId: string;
+  scenarioName: string;
+  totalStudents: number;
+  passedCount: number;
+  warningCount: number;
+  dangerCount: number;
+  passRate: number;
+  avgAdjustments: number;
+  avgSafetyFactor: number;
+  avgScore: number;
+  topRisks: ClassRiskStat[];
+  masteryStats: ClassMasteryStat[];
+  studentShortcomings: {
+    studentName: string;
+    risks: string[];
+    weakPoints: string[];
+  }[];
+}
+
+export interface ClassSummaryResult {
+  allClasses: string[];
+  allBatches: string[];
+  allScenarios: { id: string; name: string }[];
+  groups: ClassSummaryGroup[];
+}

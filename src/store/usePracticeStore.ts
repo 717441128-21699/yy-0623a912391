@@ -11,10 +11,14 @@ import type {
   PracticeArchive,
   RiskSummaryItem,
   ComparisonResult,
+  ClassSummaryResult,
+  ClassSummaryGroup,
+  ClassRiskStat,
+  ClassMasteryStat,
 } from "@/types";
 import { getScenarioById, SCENARIOS } from "@/utils/scenarioData";
 import { calculateSafety } from "@/utils/calculationEngine";
-import { PARAM_INFO } from "@/types";
+import { PARAM_INFO, KEY_POINTS } from "@/types";
 
 const ARCHIVE_STORAGE_KEY = "template-practice-archives";
 
@@ -108,6 +112,160 @@ function evaluateStudent(archive: PracticeArchive): string {
   return evaluatePerformance(archive);
 }
 
+function getStudentShortcomings(archive: PracticeArchive): {
+  risks: string[];
+  weakPoints: string[];
+} {
+  const risks = archive.riskSummary
+    .filter((r) => !r.resolved || r.count >= 3)
+    .map((r) => r.checkName);
+
+  const weakPoints: string[] = [];
+  KEY_POINTS.forEach((kp) => {
+    const status = archive.teacherFeedback.mastery[kp.id];
+    if (status === "needs-work") {
+      weakPoints.push(kp.label);
+    }
+  });
+
+  return {
+    risks: risks.length > 0 ? risks : ["无明显风险短板"],
+    weakPoints: weakPoints.length > 0 ? weakPoints : ["知识点掌握较好"],
+  };
+}
+
+function computeClassSummary(archives: PracticeArchive[]): ClassSummaryResult {
+  const classSet = new Set<string>();
+  const batchSet = new Set<string>();
+  const scenarioMap = new Map<string, string>();
+
+  archives.forEach((a) => {
+    if (a.studentInfo.className) classSet.add(a.studentInfo.className);
+    if (a.studentInfo.batchId) batchSet.add(a.studentInfo.batchId);
+    scenarioMap.set(a.scenarioId, a.scenarioName);
+  });
+
+  const groupMap = new Map<string, PracticeArchive[]>();
+
+  archives.forEach((a) => {
+    const key = [
+      a.studentInfo.className || "未分班",
+      a.studentInfo.batchId || "未分批",
+      a.scenarioId,
+    ].join("||");
+    if (!groupMap.has(key)) groupMap.set(key, []);
+    groupMap.get(key)!.push(a);
+  });
+
+  const groups: ClassSummaryGroup[] = Array.from(groupMap.entries()).map(
+    ([key, items]) => {
+      const [className, batchId, scenarioId] = key.split("||");
+      const scenarioName =
+        items[0]?.scenarioName || scenarioMap.get(scenarioId) || scenarioId;
+
+      const passed = items.filter((i) => i.finalStatus === "safe").length;
+      const warning = items.filter((i) => i.finalStatus === "warning").length;
+      const danger = items.filter((i) => i.finalStatus === "danger").length;
+
+      const avgAdj =
+        items.reduce((s, i) => s + i.actualAdjustmentCount, 0) / (items.length || 1);
+      const avgFactor =
+        items.reduce((s, i) => s + i.finalSafetyFactor, 0) / (items.length || 1);
+      const scoredItems = items.filter((i) => i.teacherFeedback.score > 0);
+      const avgScore =
+        scoredItems.length > 0
+          ? scoredItems.reduce((s, i) => s + i.teacherFeedback.score, 0) /
+            scoredItems.length
+          : 0;
+
+      const riskCountMap = new Map<string, ClassRiskStat>();
+      items.forEach((archive) => {
+        archive.riskSummary.forEach((r) => {
+          if (!riskCountMap.has(r.checkId)) {
+            riskCountMap.set(r.checkId, {
+              checkId: r.checkId,
+              checkName: r.checkName,
+              totalOccurrences: 0,
+              unresolvedCount: 0,
+              studentCount: 0,
+            });
+          }
+          const stat = riskCountMap.get(r.checkId)!;
+          stat.totalOccurrences += r.count;
+          if (!r.resolved) stat.unresolvedCount++;
+          stat.studentCount++;
+        });
+      });
+      const topRisks = Array.from(riskCountMap.values())
+        .sort((a, b) => b.totalOccurrences - a.totalOccurrences)
+        .slice(0, 5);
+
+      const masteryMap = new Map<string, ClassMasteryStat>();
+      KEY_POINTS.forEach((kp) => {
+        masteryMap.set(kp.id, {
+          keyPointId: kp.id,
+          keyPointLabel: kp.label,
+          masteredCount: 0,
+          partialCount: 0,
+          needsWorkCount: 0,
+        });
+      });
+      items.forEach((archive) => {
+        KEY_POINTS.forEach((kp) => {
+          const status = archive.teacherFeedback.mastery[kp.id];
+          const stat = masteryMap.get(kp.id)!;
+          if (status === "mastered") stat.masteredCount++;
+          else if (status === "partial") stat.partialCount++;
+          else if (status === "needs-work") stat.needsWorkCount++;
+        });
+      });
+      const masteryStats = Array.from(masteryMap.values());
+
+      const studentShortcomings = items.map((a) => {
+        const sh = getStudentShortcomings(a);
+        return {
+          studentName: a.studentInfo.name,
+          risks: sh.risks.slice(0, 3),
+          weakPoints: sh.weakPoints.slice(0, 3),
+        };
+      });
+
+      return {
+        groupKey: key,
+        className,
+        batchId,
+        scenarioId,
+        scenarioName,
+        totalStudents: items.length,
+        passedCount: passed,
+        warningCount: warning,
+        dangerCount: danger,
+        passRate: items.length > 0 ? passed / items.length : 0,
+        avgAdjustments: Math.round(avgAdj * 10) / 10,
+        avgSafetyFactor: Math.round(avgFactor * 100) / 100,
+        avgScore: Math.round(avgScore * 10) / 10,
+        topRisks,
+        masteryStats,
+        studentShortcomings,
+      };
+    }
+  );
+
+  return {
+    allClasses: Array.from(classSet),
+    allBatches: Array.from(batchSet),
+    allScenarios: Array.from(scenarioMap.entries()).map(([id, name]) => ({
+      id,
+      name,
+    })),
+    groups: groups.sort((a, b) => {
+      if (a.className !== b.className) return a.className.localeCompare(b.className);
+      if (a.batchId !== b.batchId) return a.batchId.localeCompare(b.batchId);
+      return a.scenarioName.localeCompare(b.scenarioName);
+    }),
+  };
+}
+
 interface PracticeState {
   currentScenarioId: string | null;
   currentParams: CalculationParams | null;
@@ -122,6 +280,7 @@ interface PracticeState {
   comparisonSelection: { a: string | null; b: string | null };
   showArchivePanel: boolean;
   showComparisonPanel: boolean;
+  showClassSummaryPanel: boolean;
   activeArchiveTab: "current" | "list";
 
   setScenario: (id: string) => void;
@@ -141,8 +300,11 @@ interface PracticeState {
   getComparisonResult: () => ComparisonResult | null;
   setShowArchivePanel: (show: boolean) => void;
   setShowComparisonPanel: (show: boolean) => void;
+  setShowClassSummaryPanel: (show: boolean) => void;
   setActiveArchiveTab: (tab: "current" | "list") => void;
   getRiskSummary: () => RiskSummaryItem[];
+  getClassSummary: () => ClassSummaryResult;
+  getStudentShortcomings: (archive: PracticeArchive) => { risks: string[]; weakPoints: string[] };
   clearArchives: () => void;
 }
 
@@ -177,6 +339,7 @@ export const usePracticeStore = create<PracticeState>()(
       comparisonSelection: { a: null, b: null },
       showArchivePanel: false,
       showComparisonPanel: false,
+      showClassSummaryPanel: false,
       activeArchiveTab: "current",
 
       getActualAdjustmentCount: () => {
@@ -430,6 +593,18 @@ export const usePracticeStore = create<PracticeState>()(
 
       setActiveArchiveTab: (tab: "current" | "list") => {
         set({ activeArchiveTab: tab });
+      },
+
+      setShowClassSummaryPanel: (show: boolean) => {
+        set({ showClassSummaryPanel: show });
+      },
+
+      getClassSummary: () => {
+        return computeClassSummary(get().archives);
+      },
+
+      getStudentShortcomings: (archive: PracticeArchive) => {
+        return getStudentShortcomings(archive);
       },
 
       clearArchives: () => {

@@ -7,10 +7,11 @@ import {
   CheckCircle2,
   User,
   ChevronRight,
+  ArrowRight,
 } from "lucide-react";
 import { usePracticeStore } from "@/store/usePracticeStore";
-import { KEY_POINTS } from "@/types";
-import type { PracticeArchive } from "@/types";
+import { KEY_POINTS, PARAM_INFO } from "@/types";
+import type { PracticeArchive, AdjustmentRecord } from "@/types";
 
 interface ComparisonPanelProps {
   onClose: () => void;
@@ -36,6 +37,37 @@ export function ComparisonPanel({ onClose }: ComparisonPanelProps) {
       hour: "2-digit",
       minute: "2-digit",
     });
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "safe":
+        return "#059669";
+      case "warning":
+        return "#d97706";
+      default:
+        return "#dc2626";
+    }
+  };
+
+  const getStepDescription = (
+    record: AdjustmentRecord,
+    history: AdjustmentRecord[],
+    idx: number
+  ) => {
+    if (record.isInitial) return "初始参数";
+    const prev = history[idx - 1];
+    if (!prev) return `第 ${idx + 1} 步`;
+    const changed: string[] = [];
+    (Object.keys(record.params) as (keyof typeof record.params)[]).forEach((k) => {
+      if (Math.abs(record.params[k] - prev.params[k]) > 0.01) {
+        const info = PARAM_INFO[k];
+        const diff = record.params[k] - prev.params[k];
+        const dir = diff < 0 ? "↓" : "↑";
+        changed.push(`${info.label}${dir}${Math.abs(diff)}${info.unit}`);
+      }
+    });
+    return changed.length > 0 ? changed.join("，") : `第 ${idx + 1} 步`;
+  };
 
   const getMasteryLabel = (status?: string) => {
     switch (status) {
@@ -492,6 +524,275 @@ export function ComparisonPanel({ onClose }: ComparisonPanelProps) {
                           ))}
                         </tbody>
                       </table>
+                    </div>
+                  </div>
+
+                  <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                    <div className="p-3 bg-gradient-to-r from-slate-50 to-blue-50 border-b border-gray-200 flex items-center justify-between">
+                      <h4 className="font-semibold text-gray-800 text-sm flex items-center gap-2">
+                        <ArrowRight size={16} className="text-blue-600" />
+                        调整路线并排对比（按步骤对齐）
+                      </h4>
+                      <div className="text-xs text-gray-500">
+                        学生A共 {result.archiveA.adjustmentHistory.length} 步 | 学生B共{" "}
+                        {result.archiveB.adjustmentHistory.length} 步
+                      </div>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="bg-gray-50 text-left text-xs">
+                            <th
+                              className="px-3 py-2 font-medium text-gray-500 text-center w-14"
+                              style={{ background: "#f1f5f9" }}
+                            >
+                              步骤
+                            </th>
+                            <th className="px-3 py-2 font-medium text-blue-700" style={{ background: "#eff6ff" }}>
+                              {result.archiveA.studentInfo.name}（调整内容）
+                            </th>
+                            <th className="px-3 py-2 font-medium text-blue-700 text-center w-24" style={{ background: "#eff6ff" }}>
+                              系数/状态
+                            </th>
+                            <th className="px-3 py-2 font-medium text-blue-700" style={{ background: "#eff6ff" }}>
+                              风险项
+                            </th>
+                            <th className="px-3 py-2 font-medium text-purple-700" style={{ background: "#faf5ff" }}>
+                              {result.archiveB.studentInfo.name}（调整内容）
+                            </th>
+                            <th className="px-3 py-2 font-medium text-purple-700 text-center w-24" style={{ background: "#faf5ff" }}>
+                              系数/状态
+                            </th>
+                            <th className="px-3 py-2 font-medium text-purple-700" style={{ background: "#faf5ff" }}>
+                              风险项
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(() => {
+                            const maxLen = Math.max(
+                              result.archiveA.adjustmentHistory.length,
+                              result.archiveB.adjustmentHistory.length
+                            );
+                            const rows = [];
+                            for (let i = 0; i < maxLen; i++) {
+                              const recA = result.archiveA.adjustmentHistory[i];
+                              const recB = result.archiveB.adjustmentHistory[i];
+                              const aFirstSafe =
+                                recA?.result.status === "safe" &&
+                                result.archiveA.adjustmentHistory
+                                  .slice(0, i)
+                                  .every((r) => r.result.status !== "safe");
+                              const bFirstSafe =
+                                recB?.result.status === "safe" &&
+                                result.archiveB.adjustmentHistory
+                                  .slice(0, i)
+                                  .every((r) => r.result.status !== "safe");
+
+                              rows.push(
+                                <tr key={i} className="border-t border-gray-100 text-xs">
+                                  <td
+                                    className="px-3 py-2 text-center font-mono text-gray-500"
+                                    style={{ background: "#f8fafc" }}
+                                  >
+                                    {i + 1}
+                                  </td>
+
+                                  {recA ? (
+                                    <>
+                                      <td
+                                        className={`px-3 py-2 ${
+                                          aFirstSafe ? "bg-emerald-50 font-semibold" : ""
+                                        }`}
+                                      >
+                                        <div className="text-gray-800">
+                                          {getStepDescription(
+                                            recA,
+                                            result.archiveA.adjustmentHistory,
+                                            i
+                                          )}
+                                        </div>
+                                        <div className="text-gray-400 text-[10px] mt-0.5 font-mono">
+                                          纵{recA.params.poleSpacingX}×横
+                                          {recA.params.poleSpacingY}×步
+                                          {recA.params.stepDistance} | 板厚
+                                          {recA.params.slabThickness} | 木方
+                                          {recA.params.woodSpacing}
+                                        </div>
+                                        {aFirstSafe && (
+                                          <div className="text-emerald-600 text-[10px] mt-0.5">
+                                            ✅ 首次通过
+                                          </div>
+                                        )}
+                                      </td>
+                                      <td
+                                        className={`px-3 py-2 text-center font-mono ${
+                                          aFirstSafe ? "bg-emerald-50" : ""
+                                        }`}
+                                      >
+                                        <div
+                                          style={{
+                                            color: getStatusColor(recA.result.status),
+                                            fontWeight: 600,
+                                          }}
+                                        >
+                                          {recA.result.overallSafetyFactor.toFixed(2)}
+                                        </div>
+                                        <div
+                                          className="text-[10px] mt-0.5"
+                                          style={{ color: getStatusColor(recA.result.status) }}
+                                        >
+                                          {recA.result.status === "safe"
+                                            ? "安全"
+                                            : recA.result.status === "warning"
+                                            ? "临界"
+                                            : "危险"}
+                                        </div>
+                                      </td>
+                                      <td
+                                        className={`px-3 py-2 ${
+                                          aFirstSafe ? "bg-emerald-50" : ""
+                                        }`}
+                                      >
+                                        <div className="flex flex-wrap gap-0.5">
+                                          {recA.result.checks
+                                            .filter((c) => !c.passed)
+                                            .map((c) => (
+                                              <span
+                                                key={c.id}
+                                                className="text-[10px] px-1 py-0.5 rounded bg-red-100 text-red-700"
+                                              >
+                                                {c.name}
+                                              </span>
+                                            ))}
+                                          {recA.result.checks.filter((c) => !c.passed)
+                                            .length === 0 && (
+                                            <span className="text-[10px] text-emerald-600">
+                                              无风险
+                                            </span>
+                                          )}
+                                        </div>
+                                      </td>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <td className="px-3 py-2 bg-gray-50 text-gray-300 text-center italic">
+                                        —
+                                      </td>
+                                      <td className="px-3 py-2 bg-gray-50 text-gray-300 text-center italic">
+                                        —
+                                      </td>
+                                      <td className="px-3 py-2 bg-gray-50 text-gray-300 text-center italic">
+                                        —
+                                      </td>
+                                    </>
+                                  )}
+
+                                  {recB ? (
+                                    <>
+                                      <td
+                                        className={`px-3 py-2 ${
+                                          bFirstSafe ? "bg-emerald-50 font-semibold" : ""
+                                        }`}
+                                      >
+                                        <div className="text-gray-800">
+                                          {getStepDescription(
+                                            recB,
+                                            result.archiveB.adjustmentHistory,
+                                            i
+                                          )}
+                                        </div>
+                                        <div className="text-gray-400 text-[10px] mt-0.5 font-mono">
+                                          纵{recB.params.poleSpacingX}×横
+                                          {recB.params.poleSpacingY}×步
+                                          {recB.params.stepDistance} | 板厚
+                                          {recB.params.slabThickness} | 木方
+                                          {recB.params.woodSpacing}
+                                        </div>
+                                        {bFirstSafe && (
+                                          <div className="text-emerald-600 text-[10px] mt-0.5">
+                                            ✅ 首次通过
+                                          </div>
+                                        )}
+                                      </td>
+                                      <td
+                                        className={`px-3 py-2 text-center font-mono ${
+                                          bFirstSafe ? "bg-emerald-50" : ""
+                                        }`}
+                                      >
+                                        <div
+                                          style={{
+                                            color: getStatusColor(recB.result.status),
+                                            fontWeight: 600,
+                                          }}
+                                        >
+                                          {recB.result.overallSafetyFactor.toFixed(2)}
+                                        </div>
+                                        <div
+                                          className="text-[10px] mt-0.5"
+                                          style={{ color: getStatusColor(recB.result.status) }}
+                                        >
+                                          {recB.result.status === "safe"
+                                            ? "安全"
+                                            : recB.result.status === "warning"
+                                            ? "临界"
+                                            : "危险"}
+                                        </div>
+                                      </td>
+                                      <td
+                                        className={`px-3 py-2 ${
+                                          bFirstSafe ? "bg-emerald-50" : ""
+                                        }`}
+                                      >
+                                        <div className="flex flex-wrap gap-0.5">
+                                          {recB.result.checks
+                                            .filter((c) => !c.passed)
+                                            .map((c) => (
+                                              <span
+                                                key={c.id}
+                                                className="text-[10px] px-1 py-0.5 rounded bg-red-100 text-red-700"
+                                              >
+                                                {c.name}
+                                              </span>
+                                            ))}
+                                          {recB.result.checks.filter((c) => !c.passed)
+                                            .length === 0 && (
+                                            <span className="text-[10px] text-emerald-600">
+                                              无风险
+                                            </span>
+                                          )}
+                                        </div>
+                                      </td>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <td className="px-3 py-2 bg-gray-50 text-gray-300 text-center italic">
+                                        —
+                                      </td>
+                                      <td className="px-3 py-2 bg-gray-50 text-gray-300 text-center italic">
+                                        —
+                                      </td>
+                                      <td className="px-3 py-2 bg-gray-50 text-gray-300 text-center italic">
+                                        —
+                                      </td>
+                                    </>
+                                  )}
+                                </tr>
+                              );
+                            }
+                            return rows;
+                          })()}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="p-2 bg-gray-50 border-t border-gray-100 text-[11px] text-gray-500 flex items-center gap-4">
+                      <span className="inline-flex items-center gap-1">
+                        <span className="w-2 h-2 rounded-full bg-emerald-200 border border-emerald-400"></span>
+                        绿色高亮行表示该学生首次通过验算的步骤
+                      </span>
+                      <span>
+                        谁先达到 ✅ 首次通过，说明谁更快找到正确布置方向
+                      </span>
                     </div>
                   </div>
 

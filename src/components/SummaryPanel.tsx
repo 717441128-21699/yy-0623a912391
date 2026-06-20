@@ -1789,6 +1789,146 @@ export function SummaryPanel({ onClose }: SummaryPanelProps) {
           <div className="print-tab-content p-6">
             <div
               style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(3, 1fr)",
+                gap: "16px",
+                marginBottom: "24px",
+              }}
+            >
+              {[
+                {
+                  label: "调整次数",
+                  value: actualCount,
+                  color: "#1E40AF",
+                },
+                {
+                  label: "最终安全系数",
+                  value: lastRecord?.result.overallSafetyFactor.toFixed(2) || "0.00",
+                  color: isSuccess ? "#059669" : "#DC2626",
+                },
+                {
+                  label: "系数提升",
+                  value: `${improvement >= 0 ? "+" : ""}${improvement.toFixed(0)}%`,
+                  color: improvement >= 0 ? "#059669" : "#DC2626",
+                },
+              ].map((s, i) => (
+                <div
+                  key={i}
+                  style={{
+                    background: "#f9fafb",
+                    padding: "16px",
+                    borderRadius: "8px",
+                    textAlign: "center",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: "12px",
+                      color: "#6b7280",
+                      marginBottom: "8px",
+                    }}
+                  >
+                    {s.label}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "28px",
+                      fontWeight: "bold",
+                      color: s.color,
+                      fontFamily: "monospace",
+                    }}
+                  >
+                    {s.value}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div
+              style={{
+                padding: "12px 16px",
+                background: "#eff6ff",
+                borderRadius: "8px",
+                border: "1px solid #bfdbfe",
+                marginBottom: "20px",
+                fontSize: "13px",
+              }}
+            >
+              <div style={{ display: "flex", gap: "24px", flexWrap: "wrap" }}>
+                {studentInfo.name && <span><strong>学生姓名：</strong>{studentInfo.name}</span>}
+                {studentInfo.className && <span><strong>班级：</strong>{studentInfo.className}</span>}
+                {studentInfo.batchId && <span><strong>作业批次：</strong>{studentInfo.batchId}</span>}
+                {teacherName && <span><strong>批改老师：</strong>{teacherName}</span>}
+                {scenario && <span><strong>练习场景：</strong>{scenario.name}</span>}
+              </div>
+            </div>
+
+            <div
+              style={{
+                padding: "16px",
+                background: "#eff6ff",
+                borderRadius: "8px",
+                border: "1px solid #bfdbfe",
+                marginBottom: "24px",
+                pageBreakInside: "avoid",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
+                <span style={{ fontSize: "18px" }}>📝</span>
+                <span style={{ fontWeight: "bold", color: "#1e40af" }}>课堂点评</span>
+              </div>
+              <div style={{ fontSize: "14px", marginBottom: "8px" }}>
+                <strong>评分：</strong>
+                {teacherFeedback.score > 0
+                  ? `${"★".repeat(teacherFeedback.score)}${"☆".repeat(
+                      5 - teacherFeedback.score
+                    )} (${teacherFeedback.score}分)`
+                  : "未评分"}
+              </div>
+              <div style={{ fontSize: "14px", marginBottom: "8px" }}>
+                <strong>知识点掌握：</strong>
+                {KEY_POINTS.map((kp) => (
+                  <span
+                    key={kp.id}
+                    style={{
+                      display: "inline-block",
+                      padding: "2px 8px",
+                      marginRight: "8px",
+                      marginTop: "4px",
+                      borderRadius: "4px",
+                      fontSize: "12px",
+                      background:
+                        teacherFeedback.mastery[kp.id] === "mastered"
+                          ? "#d1fae5"
+                          : teacherFeedback.mastery[kp.id] === "partial"
+                          ? "#fef3c7"
+                          : teacherFeedback.mastery[kp.id] === "needs-work"
+                          ? "#fee2e2"
+                          : "#f3f4f6",
+                      color:
+                        teacherFeedback.mastery[kp.id] === "mastered"
+                          ? "#065f46"
+                          : teacherFeedback.mastery[kp.id] === "partial"
+                          ? "#92400e"
+                          : teacherFeedback.mastery[kp.id] === "needs-work"
+                          ? "#991b1b"
+                          : "#6b7280",
+                    }}
+                  >
+                    {kp.label}：{getMasteryLabel(teacherFeedback.mastery[kp.id])}
+                  </span>
+                ))}
+              </div>
+              {teacherFeedback.comment && (
+                <div style={{ fontSize: "14px" }}>
+                  <strong>评语：</strong>
+                  {teacherFeedback.comment}
+                </div>
+              )}
+            </div>
+
+            <div
+              style={{
                 padding: "16px",
                 background: "#fefce8",
                 borderRadius: "8px",
